@@ -12,15 +12,17 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script>
-const firebaseConfig = {
-  apiKey: "AIzaSyBhajeymjJLdS8XioxS4tjpevoWZYSJseI",
+/* Firebase config - paste your own */
+(function(){
+  var firebaseConfig = {
+    apiKey: "AIzaSyBhajeymjJLdS8XioxS4tjpevoWZYSJseI",
   authDomain: "attendancehil.firebaseapp.com",
   projectId: "attendancehil",
   storageBucket: "attendancehil.firebasestorage.app",
   messagingSenderId: "379775956885",
   appId: "1:379775956885:web:2342b908a1d83d868a689c",
   measurementId: "G-TCGEJCFZHW"
-};
+  };
   window.__fbConfigured = firebaseConfig.apiKey.indexOf('PASTE_YOUR') === -1;
   if(window.__fbConfigured){
     if(!firebase.apps.length){
@@ -747,6 +749,7 @@ function Dashboard({emps,att,selMonth,setSelMonth,hcodes,depts,setView,ensureMon
     h('div',{className:'card-flat'},
       h('div',{style:{padding:'12px 14px',borderBottom:'1px solid var(--bd)',fontWeight:700,fontSize:12,color:'var(--txt2)'}},'Department Summary — '+selMonth),
       h('div',{style:{overflowX:'auto'}},h('table',null,h('thead',null,h('tr',null,['Department','Employees','Worked h','Net OT-1','Net OT-2','Absent'].map(x=>h('th',{key:x},x)))),h('tbody',null,Object.entries(deptS).map(([d,s])=>h('tr',{key:d},h('td',{style:{fontWeight:600}},d),h('td',null,s.n),h('td',{style:{color:'#2563eb',fontWeight:600}},fmt2(s.h)+'h'),h('td',null,s.o1>.01?h(Chip,{label:fmt2(s.o1)+'h',color:'#d97706'}):'—'),h('td',null,s.o2>.01?h(Chip,{label:fmt2(s.o2)+'h',color:'#7c3aed'}):'—'),h('td',null,s.ab>0?h(Chip,{label:s.ab+'d',color:'#dc2626'}):'0'))))))
+      )
   );
 }
 
@@ -864,7 +867,7 @@ function Attendance({emps,att,setAtt,curUser,showToast,hcodes,ot2Cats,selMonth,s
     active.forEach(emp=>{
       const prevRec=(att[emp.id]||{})[prevDate];
       if(prevRec){
-        setAtt(p=>({...p,[emp.id]:{...(p[emp.id]||{}),[targetDate]:{...prevRec,status:prevRec.status}}}}));
+        setAtt(p=>({...p,[emp.id]:{...(p[emp.id]||{}),[targetDate]:{...prevRec,status:prevRec.status}}}));
         copied++;
       }
     });
