@@ -1817,6 +1817,21 @@ function App(){
   }
   useEffect(()=>{const handler=()=>flushPendingSaves();window.addEventListener('beforeunload',handler);return ()=>window.removeEventListener('beforeunload',handler);});
 
+  // ── Periodic safety-flush: browsers do not guarantee that an async
+  //    Firestore write started in a 'beforeunload' handler will actually
+  //    finish before the tab closes. To cap how much could ever be lost
+  //    if someone closes the tab (instead of clicking Logout) or the
+  //    connection drops, force any pending debounced save through every
+  //    5 seconds while a user is signed in — so at most a few seconds of
+  //    changes are ever at risk, never an entire session's worth.
+  useEffect(()=>{
+    if(!user)return;
+    const iv=setInterval(()=>{
+      if(Object.keys(saveTimers.current).length>0){ flushPendingSaves(); }
+    },5000);
+    return ()=>clearInterval(iv);
+  },[user]);
+
   const IDLE_LIMIT_MS=120000;const IDLE_WARNING_MS=100000;
   const[idleWarnVisible,setIdleWarnVisible]=useState(false);
   const[idleSecondsLeft,setIdleSecondsLeft]=useState(20);
