@@ -827,6 +827,19 @@ function Attendance({emps,att,setAtt,curUser,showToast,hcodes,ot2Cats,selMonth,s
     setAtt(p=>({...p,[empId]:{...(p[empId]||{}),[date]:{status,hoursWorked:+hours.toFixed(2),hcodeId:hcodeId||hc?.id,ot2Cat:status==='present'?(autoOT2||ot2Cat||null):null,shift:s,dedHours:+(dedH||0)}}}));
   }
 
+  // ── Fully remove a day's attendance entry (back to unmarked/blank),
+  //    as opposed to markOne() which only changes the status.
+  function clearOne(empId){
+    if(!canEdit){showToast('No edit permission','err');return;}
+    if(!window.confirm('Remove this attendance entry for '+date+'? This cannot be undone.'))return;
+    setAtt(p=>{
+      const empRec={...(p[empId]||{})};
+      delete empRec[date];
+      return {...p,[empId]:empRec};
+    });
+    showToast('Entry removed');
+  }
+
   function applyBulk(){
     if(!selIds.length||!canEdit)return;
     let targetList=selIds;
@@ -952,7 +965,10 @@ function Attendance({emps,att,setAtt,curUser,showToast,hcodes,ot2Cats,selMonth,s
             h('td',null,rec?.status==='present'?h('input',{type:'number',min:0,max:24,step:.25,value:rec.dedHours||0,onChange:e=>markOne(emp.id,rec.status,rec.hcodeId,rec.hoursWorked,rec.ot2Cat,shift,+e.target.value),style:{width:56,background:'#fef2f2',border:'1.5px solid #fca5a5',borderRadius:6,padding:'3px 5px',fontSize:11,textAlign:'center',color:'#dc2626',fontWeight:700}}):'—'),
             h('td',null,rec?.status==='present'?h('select',{value:rec?.ot2Cat||'',onChange:e=>markOne(emp.id,rec.status,rec.hcodeId,rec.hoursWorked,e.target.value||null,shift,rec.dedHours),className:'inp inp-sm',style:{width:100,color:ot2Cat?ot2Cat.color:'var(--txt3)'}},h('option',{value:''},'Regular'),ot2Cats.map(c=>h('option',{key:c.id,value:c.id},c.label))):'—'),
             h('td',null,rec?.status==='present'?h('span',{style:{fontWeight:800,fontSize:12,color:netH<(rec.hoursWorked||0)?'#dc2626':'#059669'}},fmt2(netH)):'—'),
-            h('td',null,h('div',{style:{display:'flex',gap:2}},['present','absent','leave','late'].map(s=>h('button',{key:s,onClick:()=>markOne(emp.id,s,rec?.hcodeId||hcodes[0]?.id,null,s==='present'?rec?.ot2Cat||'':null,shift,s==='present'?rec?.dedHours||0:0),style:{width:20,height:20,borderRadius:4,border:`1.5px solid ${rec?.status===s?SC[s]?.color:SC[s]?.color+'30'}`,background:rec?.status===s?SC[s]?.color+'18':'transparent',color:rec?.status===s?SC[s]?.color:SC[s]?.color+'70',fontSize:10,fontWeight:800,padding:0}},SI[s]))))
+            h('td',null,h('div',{style:{display:'flex',gap:2,alignItems:'center'}},
+              ['present','absent','leave','late'].map(s=>h('button',{key:s,onClick:()=>markOne(emp.id,s,rec?.hcodeId||hcodes[0]?.id,null,s==='present'?rec?.ot2Cat||'':null,shift,s==='present'?rec?.dedHours||0:0),style:{width:20,height:20,borderRadius:4,border:`1.5px solid ${rec?.status===s?SC[s]?.color:SC[s]?.color+'30'}`,background:rec?.status===s?SC[s]?.color+'18':'transparent',color:rec?.status===s?SC[s]?.color:SC[s]?.color+'70',fontSize:10,fontWeight:800,padding:0}},SI[s])),
+              rec&&h('button',{key:'clear',onClick:()=>clearOne(emp.id),title:'Remove this entry entirely',style:{width:20,height:20,borderRadius:4,border:'1.5px solid #fca5a530',background:'transparent',color:'#dc2626',fontSize:11,fontWeight:800,padding:0,marginLeft:2}},'🗑')
+            ))
           );
         }))
       )),
