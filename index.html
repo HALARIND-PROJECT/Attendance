@@ -1848,7 +1848,7 @@ function App(){
     return ()=>clearInterval(iv);
   },[user]);
 
-  const IDLE_LIMIT_MS=120000;const IDLE_WARNING_MS=100000;
+  const IDLE_LIMIT_MS=180000;const IDLE_WARNING_MS=160000; // 3 min idle limit, warning 20s before
   const[idleWarnVisible,setIdleWarnVisible]=useState(false);
   const[idleSecondsLeft,setIdleSecondsLeft]=useState(20);
   const idleWarnTimer=useRef(null);const idleLogoutTimer=useRef(null);const idleCountdownInterval=useRef(null);
@@ -1896,6 +1896,11 @@ function App(){
         h('div',{style:{fontSize:10,color:'var(--txt3)',display:'flex',gap:10}},h('span',null,'OT-1 >'+OT1_THR+'h ×1.5'),h('span',null,'OT-2 ×2'),h('span',null,emps.length+' employees')),
         h(Av,{name:user.displayName||empName(user),size:28}),
         h('div',null,h('div',{style:{fontSize:11,fontWeight:700}},user.displayName||empName(user)),rd&&h('div',{style:{fontSize:9,color:rd.color,fontWeight:600}},rd.label)),
+        h('button',{
+          onClick:()=>{ flushPendingSaves(); showToast('Saving now...'); },
+          className:'btn btn-ghost btn-sm',
+          title:'Force-save any unsaved changes immediately (autosave also runs automatically in the background)'
+        },'💾 Save Now'),
         h('button',{onClick:()=>{flushPendingSaves();addLog('Logout',user.id);setUser(null);},className:'btn btn-ghost btn-sm'},'Logout')
       )
     ),
