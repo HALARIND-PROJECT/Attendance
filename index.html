@@ -486,7 +486,7 @@ function VirtualScroll({items,renderItem,itemHeight=40,containerHeight=500}){
 }
 
 /* ══════════════════════ EMPLOYEE DETAIL MODAL ══════════════════════ */
-function EmpDetailModal({emp,att,hcodes,ot2Cats,contractors,selMonth,onClose,onSave,canEdit,ensureMonthLoaded}){
+function EmpDetailModal({emp,att,hcodes,ot2Cats,contractors,selMonth,onClose,onSave,canEdit,canAdminEdit,ensureMonthLoaded}){
   const[activeTab,setActiveTab]=useState('month');
   const[localEmp,setLocalEmp]=useState({...emp});
   const[localAtt,setLocalAtt]=useState(att[emp.id]||{});
@@ -534,7 +534,15 @@ function EmpDetailModal({emp,att,hcodes,ot2Cats,contractors,selMonth,onClose,onS
     setNewDed({label:'',hours:0,applyFrom:viewMonth,applyTo:viewMonth});
   }
   function removeDeduction(id){setLocalEmp(p=>({...p,deductionRules:(p.deductionRules||[]).filter(d=>d.id!==id)}));}
-  function handleSave(){onSave(localEmp,localAtt);onClose();}
+  function handleSave(){
+    if(localEmp.id!==emp.id){
+      if(!window.confirm('You are changing this employee\'s ID from "'+emp.id+'" to "'+localEmp.id+'".\n\nAll of their attendance history will move to the new ID. This cannot be undone. Continue?')){
+        return;
+      }
+    }
+    onSave(localEmp,localAtt,emp.id); // pass the ORIGINAL id so the caller can detect a rename
+    onClose();
+  }
 
   const DOW_LABELS=['Su','Mo','Tu','We','Th','Fr','Sa'];
   const SC=STATUS_CFG;
@@ -659,7 +667,10 @@ function EmpDetailModal({emp,att,hcodes,ot2Cats,contractors,selMonth,onClose,onS
         h(SectionTitle,'Employee Profile'),
         h(Row2,null,
           h(Field,{label:'Full Name'},h('input',{value:localEmp.name||'',onChange:e=>setLocalEmp(p=>({...p,name:e.target.value})),className:'inp',disabled:!canEdit})),
-          h(Field,{label:'Employee ID'},h('input',{value:localEmp.id,className:'inp',disabled:true}))
+          h(Field,{label:'Employee ID'},h('div',null,
+            h('input',{value:localEmp.id,onChange:e=>setLocalEmp(p=>({...p,id:e.target.value})),className:'inp',disabled:!canAdminEdit}),
+            canAdminEdit&&h('div',{style:{fontSize:9,color:'#d97706',marginTop:3}},'⚠ Changing this moves all attendance history to the new ID')
+          ))
         ),
         h(Row2,null,
           h(Field,{label:'Payroll #'},h('input',{value:localEmp.payrollNo||'',onChange:e=>setLocalEmp(p=>({...p,payrollNo:e.target.value})),className:'inp',disabled:!canEdit})),
@@ -1040,10 +1051,26 @@ function Employees({emps,setEmps,att,setAtt,curUser,showToast,depts,setDepts,con
   function deactivate(id){setEmps(p=>p.map(e=>e.id===id?{...e,status:'inactive',inactiveFrom:td()}:e));showToast('Deactivated');}
   function reactivate(id){setEmps(p=>p.map(e=>e.id===id?{...e,status:'active',inactiveFrom:null,reactivateOn:null}:e));showToast('Reactivated');}
   function deleteEmp(id){if(!window.confirm('Delete permanently?'))return;setEmps(p=>p.filter(e=>e.id!==id));showToast('Deleted');}
-  function saveDetail(updatedEmp,updatedAtt){
-    setEmps(p=>p.map(e=>e.id===updatedEmp.id?updatedEmp:e));
-    setAtt(p=>({...p,[updatedEmp.id]:{...(p[updatedEmp.id]||{}),...updatedAtt}}));
-    showToast('Employee saved');
+  function saveDetail(updatedEmp,updatedAtt,originalId){
+    const oldId=originalId||updatedEmp.id;
+    const idChanged=oldId!==updatedEmp.id;
+    setEmps(p=>p.map(e=>e.id===oldId?updatedEmp:e));
+    setAtt(p=>{
+      const next={...p};
+      if(idChanged){
+        // Move this employee's entire attendance history from the old ID
+        // key to the new one, merging with anything already loaded under
+        // the new key (should normally be empty) and removing the old key
+        // so it doesn't linger as an orphaned duplicate.
+        const merged={...(next[updatedEmp.id]||{}),...(next[oldId]||{}),...updatedAtt};
+        next[updatedEmp.id]=merged;
+        delete next[oldId];
+      } else {
+        next[updatedEmp.id]={...(next[updatedEmp.id]||{}),...updatedAtt};
+      }
+      return next;
+    });
+    showToast(idChanged?'Employee saved — attendance history moved to new ID':'Employee saved');
   }
 
   return h('div',{className:'fade'},
@@ -1148,7 +1175,7 @@ function Employees({emps,setEmps,att,setAtt,curUser,showToast,depts,setDepts,con
       ),
       h('div',{style:{display:'flex',gap:8,marginTop:4}},h('button',{onClick:addEmp,disabled:!newE.id||!newE.name,className:'btn btn-primary',style:{flex:1,opacity:newE.id&&newE.name?1:.4}},'Add'),h('button',{onClick:()=>setAddOpen(false),className:'btn btn-ghost'},'Cancel'))
     ),
-    detailEmp&&h(EmpDetailModal,{emp:detailEmp,att,hcodes,ot2Cats,contractors,selMonth,onClose:()=>setDetailEmp(null),onSave:saveDetail,canEdit,ensureMonthLoaded})
+    detailEmp&&h(EmpDetailModal,{emp:detailEmp,att,hcodes,ot2Cats,contractors,selMonth,onClose:()=>setDetailEmp(null),onSave:saveDetail,canEdit,canAdminEdit:canAdmin,ensureMonthLoaded})
   );
 }
 
@@ -1818,14 +1845,21 @@ function App(){
   },[]);
   useEffect(()=>{if(dbReady)ensureMonthLoaded(selMonth);},[selMonth,dbReady]);
   const isFirstRender=useRef(true);
-  useEffect(()=>{if(isFirstRender.current)return;fsSave('ap_config','emps',{v:emps,t:Date.now()});},[emps]);
-  useEffect(()=>{if(isFirstRender.current)return;fsSaveAttendance(att);},[att]);
-  useEffect(()=>{if(isFirstRender.current)return;fsSave('ap_config','sysUsers',{v:sysUsers,t:Date.now()});},[sysUsers]);
-  useEffect(()=>{if(isFirstRender.current)return;fsSave('ap_config','contractors',{v:contractors,t:Date.now()});},[contractors]);
-  useEffect(()=>{if(isFirstRender.current)return;fsSave('ap_config','depts',{v:depts,t:Date.now()});},[depts]);
-  useEffect(()=>{if(isFirstRender.current)return;fsSave('ap_config','hcodes',{v:hcodes,t:Date.now()});},[hcodes]);
-  useEffect(()=>{if(isFirstRender.current)return;fsSave('ap_config','ot2Cats',{v:ot2Cats,t:Date.now()});},[ot2Cats]);
-  useEffect(()=>{if(isFirstRender.current)return;fsSave('ap_config','logs',{v:logs,t:Date.now()});},[logs]);
+  // Guarded on dbReady (not just isFirstRender): isFirstRender flips to
+  // false almost immediately after mount, well before the async initial
+  // Firestore load actually finishes. Without also checking dbReady, an
+  // edit made in that gap (e.g. adding a deduction right after logging
+  // in) could save incomplete local data and silently wipe out whatever
+  // was already stored — the same root cause fixed for attendance,
+  // applied here to every other config channel.
+  useEffect(()=>{if(isFirstRender.current||!dbReady)return;fsSave('ap_config','emps',{v:emps,t:Date.now()});},[emps,dbReady]);
+  useEffect(()=>{if(isFirstRender.current||!dbReady)return;fsSaveAttendance(att);},[att,dbReady]);
+  useEffect(()=>{if(isFirstRender.current||!dbReady)return;fsSave('ap_config','sysUsers',{v:sysUsers,t:Date.now()});},[sysUsers,dbReady]);
+  useEffect(()=>{if(isFirstRender.current||!dbReady)return;fsSave('ap_config','contractors',{v:contractors,t:Date.now()});},[contractors,dbReady]);
+  useEffect(()=>{if(isFirstRender.current||!dbReady)return;fsSave('ap_config','depts',{v:depts,t:Date.now()});},[depts,dbReady]);
+  useEffect(()=>{if(isFirstRender.current||!dbReady)return;fsSave('ap_config','hcodes',{v:hcodes,t:Date.now()});},[hcodes,dbReady]);
+  useEffect(()=>{if(isFirstRender.current||!dbReady)return;fsSave('ap_config','ot2Cats',{v:ot2Cats,t:Date.now()});},[ot2Cats,dbReady]);
+  useEffect(()=>{if(isFirstRender.current||!dbReady)return;fsSave('ap_config','logs',{v:logs,t:Date.now()});},[logs,dbReady]);
   useEffect(()=>{isFirstRender.current=false;},[]);
 
   function flushPendingSaves(){
